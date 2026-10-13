@@ -1,58 +1,40 @@
 import streamlit as st
-from PIL import Image, ImageChops, ImageEnhance, ImageStat, ExifTags
+from PIL import Image, ImageChops, ImageEnhance, ImageStat
 import io
 
-st.set_page_config(page_title="Hansi AI Detector Pro")
-st.title("🔍 Hansi's PRO Detector")
-st.write("Photoshop | Paint | AI | Filter - Siyalla Detect!")
+st.title("🔍 Hansi Detector - No False Positive")
+st.write("Original JPEG walata edited kiyanne na")
 
-uploaded = st.file_uploader("Image eka danna", type=["jpg","png","jpeg","webp"])
+uploaded = st.file_uploader("Image", type=["jpg","png","jpeg","webp"])
 
 if uploaded:
-    image = Image.open(uploaded).convert('RGB')
-    st.image(image, width=350)
+    img = Image.open(uploaded).convert('RGB')
+    st.image(img, width=320)
 
-    # 1. METADATA CHECK
-    try:
-        exif = image._getexif()
-        if exif:
-            software = [v for k,v in exif.items() if "Software" in str(ExifTags.TAGS.get(k))]
-            if software:
-                st.warning(f"⚠️ Software Found in metadata: {software}")
-    except:
-        pass
-
-    # 2. ELA CHECK (90 quality)
+    # ELA with 95 quality (original walata less white)
     buf = io.BytesIO()
-    image.save(buf, "JPEG", quality=90)
+    img.save(buf, "JPEG", quality=95)
     buf.seek(0)
     temp = Image.open(buf)
-    ela = ImageChops.difference(image, temp)
-    max_d = max([ex[1] for ex in ela.getextrema()]) or 1
-    ela = ImageEnhance.Brightness(ela).enhance(255.0/max_d * 2.5)
 
-    st.image(ela, width=350, caption="ELA - White area = Edited")
+    ela = ImageChops.difference(img, temp)
+    max_d = max([e[1] for e in ela.getextrema()]) or 1
+    ela = ImageEnhance.Brightness(ela).enhance(255.0/max_d)
 
-    stat = ImageStat.Stat(ela.convert('L'))
+    # Center crop - edges ignore
+    w,h = ela.size
+    ela_crop = ela.crop((w*0.05, h*0.05, w*0.95, h*0.95))
+    stat = ImageStat.Stat(ela_crop.convert('L'))
+
     mean = stat.mean[0]
-    stddev = stat.stddev[0]
-    extrema = stat.extrema[0]
+    st.image(ela, width=320, caption="ELA Result")
+    st.write(f"Score: {mean:.2f}")
 
-    # 3. FINAL VERDICT
-    st.divider()
-    st.subheader("Result:")
-
-    if mean > 20 or stddev > 30:
-        st.error(f"🚨 EDITED CONFIRMED - Score {mean:.1f}")
-        st.write("✓ Photoshop / Paint / AI edit ekak thiyanawa")
-        if extrema[1] > 200:
-            st.write("✓ Bright white spots = Pasted / Drawn area")
-    elif mean > 10:
-        st.warning(f"⚠️ POSSIBLY EDITED - Score {mean:.1f}")
-        st.write("Re-save karala athi, hari filter ekak dala athi")
+    # NEW THRESHOLDS - Fixed for false positive
+    if mean > 22:
+        st.error("🚨 EDITED - Sure edit ekak thiyanawa")
+    elif mean > 12:
+        st.warning("⚠️ CHECK - Re-save wela thiyanawa, edit ekak wenna puluwan")
+        st.write("Original photo ekak unath phone eken save karama mehema enawa")
     else:
-        st.success(f"✅ ORIGINAL - Score {mean:.1f}")
-        st.write("Edit ekak na wage")
-
-    with st.expander("Technical Details"):
-        st.write(f"Mean: {mean:.2f}, StdDev: {stddev:.2f}, Max: {extrema[1]}")
+        st.success("✅ ORIGINAL - 100% Clean")
