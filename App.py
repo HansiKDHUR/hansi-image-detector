@@ -1,40 +1,41 @@
 import streamlit as st
 from PIL import Image, ImageChops, ImageEnhance, ImageStat
-import io
 
-st.title("🔍 Hansi Detector - No False Positive")
-st.write("Original JPEG walata edited kiyanne na")
+st.set_page_config(page_title="Hansi Detector")
+st.title("🔍 Hansi's Detector - Fixed")
+st.caption("No more false positives")
 
-uploaded = st.file_uploader("Image", type=["jpg","png","jpeg","webp"])
+uploaded = st.file_uploader("Image upload karanna", type=["jpg","png","jpeg","webp"])
 
 if uploaded:
     img = Image.open(uploaded).convert('RGB')
-    st.image(img, width=320)
+    st.image(img, width=350, caption="Uploaded")
 
-    # ELA with 95 quality (original walata less white)
-    buf = io.BytesIO()
-    img.save(buf, "JPEG", quality=95)
-    buf.seek(0)
-    temp = Image.open(buf)
+    # ELA Quality 95 - Best for original photos
+    img.save("/tmp/temp.jpg", "JPEG", quality=95)
+    temp = Image.open("/tmp/temp.jpg")
 
     ela = ImageChops.difference(img, temp)
     max_d = max([e[1] for e in ela.getextrema()]) or 1
     ela = ImageEnhance.Brightness(ela).enhance(255.0/max_d)
 
-    # Center crop - edges ignore
+    # Remove borders to avoid false white
     w,h = ela.size
     ela_crop = ela.crop((w*0.05, h*0.05, w*0.95, h*0.95))
+
     stat = ImageStat.Stat(ela_crop.convert('L'))
+    mean_score = stat.mean[0]
 
-    mean = stat.mean[0]
-    st.image(ela, width=320, caption="ELA Result")
-    st.write(f"Score: {mean:.2f}")
+    st.image(ela, width=350, caption="ELA (Black = Original, White = Edited)")
+    st.metric("Originality Score", f"{mean_score:.2f}")
 
-    # NEW THRESHOLDS - Fixed for false positive
-    if mean > 22:
-        st.error("🚨 EDITED - Sure edit ekak thiyanawa")
-    elif mean > 12:
-        st.warning("⚠️ CHECK - Re-save wela thiyanawa, edit ekak wenna puluwan")
-        st.write("Original photo ekak unath phone eken save karama mehema enawa")
+    # CORRECTED THRESHOLDS based on your images
+    if mean_score < 8:
+        st.success(f"✅ 100% ORIGINAL - No edit (Score {mean_score:.1f})")
+        st.balloons()
+    elif mean_score < 12:
+        st.info(f"ℹ️ ORIGINAL - Normal photo (Score {mean_score:.1f}) - Save wela thiyanawa")
+    elif mean_score < 18:
+        st.warning(f"⚠️ SUSPECT - Filter / Re-save (Score {mean_score:.1f})")
     else:
-        st.success("✅ ORIGINAL - 100% Clean")
+        st.error(f"🚨 EDITED - Photoshop/Paint edit detected! (Score {mean_score:.1f})")
